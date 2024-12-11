@@ -195,49 +195,12 @@ theorem ext {p q : UniPoly R} (h : p.coeffs = q.coeffs) : p = q := by
 
 @[simp] theorem zero_def : (0 : UniPoly R) = ⟨#[]⟩ := rfl
 
-lemma add_comm_list (p q : List R) :
-  UniPoly.mk p.toArray + UniPoly.mk q.toArray
-    = UniPoly.mk q.toArray + UniPoly.mk p.toArray := by
-  revert q
-  induction p with
-  | nil =>
-    simp [instHAdd, instAdd, add, List.matchSize]
-    intro q
-    apply List.ext_get <;> try simp
-    aesop
-    unfold Add.add Distrib.toAdd NonUnitalNonAssocSemiring.toDistrib
-    simp
-    unfold AddSemigroup.toAdd AddMonoid.toAddSemigroup AddCommMonoid.toAddMonoid
-    unfold NonUnitalNonAssocSemiring.toAddCommMonoid
-    unfold  NonAssocSemiring.toNonUnitalNonAssocSemiring
-    unfold Semiring.toNonAssocSemiring
-    simp
-    unfold NonUnitalSemiring.toNonUnitalNonAssocSemiring
-    unfold Semiring.toNonUnitalSemiring
-
-    rw [inst.add_comm]
-
-
-
-    ring_nf
-    rw [←instAdd]
-
-    intro q
-
-  | cons x tail ih => sorry
-
--- What is going on with the unfolding??
-theorem add_comm (p q : UniPoly R) : p + q = q + p := by
+lemma add_comm_list {p q : List R} :
+  UniPoly.mk p.toArray + UniPoly.mk q.toArray = UniPoly.mk q.toArray + UniPoly.mk p.toArray := by
   simp [instHAdd, instAdd, add, List.matchSize]
+  exact List.zipWith_comm_of_comm _ (fun x y ↦ by change x + y = y + x; rw [_root_.add_comm]) _ _
 
-
-  sorry
-  -- refine Array.ext' ?_
-  -- simp [Array.toList_zipWith]
-  -- rw [List.zipWith_comm _ _ _]
-  -- congr; ext a b; rename_i inst;
-  -- have : ∀ (a b : R), Add.add a b = a + b := fun a b => rfl
-  -- rw [this, this]; simp [inst.add_comm]
+theorem add_comm {p q : UniPoly R} : p + q = q + p := add_comm_list
 
 @[simp] theorem zero_add (p : UniPoly R) : 0 + p = p := by
   simp [instHAdd, instAdd, add, List.matchSize]
