@@ -7,6 +7,7 @@ Authors: Quang Dao
 import Mathlib.Algebra.Tropical.Basic
 import Mathlib.RingTheory.Polynomial.Basic
 import ZKLib.Data.Math.Operations
+import Init.Data.Array.Lemmas
 
 /-!
   # Univariate Polynomials with Efficient Operations
@@ -194,9 +195,42 @@ theorem ext {p q : UniPoly R} (h : p.coeffs = q.coeffs) : p = q := by
 
 @[simp] theorem zero_def : (0 : UniPoly R) = ⟨#[]⟩ := rfl
 
+lemma add_comm_list (p q : List R) :
+  UniPoly.mk p.toArray + UniPoly.mk q.toArray
+    = UniPoly.mk q.toArray + UniPoly.mk p.toArray := by
+  revert q
+  induction p with
+  | nil =>
+    simp [instHAdd, instAdd, add, List.matchSize]
+    intro q
+    apply List.ext_get <;> try simp
+    aesop
+    unfold Add.add Distrib.toAdd NonUnitalNonAssocSemiring.toDistrib
+    simp
+    unfold AddSemigroup.toAdd AddMonoid.toAddSemigroup AddCommMonoid.toAddMonoid
+    unfold NonUnitalNonAssocSemiring.toAddCommMonoid
+    unfold  NonAssocSemiring.toNonUnitalNonAssocSemiring
+    unfold Semiring.toNonAssocSemiring
+    simp
+    unfold NonUnitalSemiring.toNonUnitalNonAssocSemiring
+    unfold Semiring.toNonUnitalSemiring
+
+    rw [inst.add_comm]
+
+
+
+    ring_nf
+    rw [←instAdd]
+
+    intro q
+
+  | cons x tail ih => sorry
+
 -- What is going on with the unfolding??
-@[simp] theorem add_comm (p q : UniPoly R) : p + q = q + p := by
+theorem add_comm (p q : UniPoly R) : p + q = q + p := by
   simp [instHAdd, instAdd, add, List.matchSize]
+
+
   sorry
   -- refine Array.ext' ?_
   -- simp [Array.toList_zipWith]
@@ -343,10 +377,70 @@ noncomputable def Equiv.UniPoly.TropicallyBoundPolynomial {R : Type} [Semiring R
 
 end Tropical
 
+def xMinusA {R: Type} [Ring R] (a : R) : UniPoly R
+  := ⟨#[-a, 1]⟩
 
-def evalsToPoly {R: Type} [Semiring R] (evals : Array R) : Polynomial R
-  := match evals.toList with
-  | [] => ⟨1⟩
-  | x::g => sorry
+@[simp]
+lemma x_minus_a_on_b_eq_b_minus_a {R: Type} [Ring R] (a b : R):
+  (xMinusA a).eval b = b - a := by
+  unfold UniPoly.eval UniPoly.eval₂ xMinusA Array.zipWithIndex
+  simp
+  rw [add_comm, Mathlib.Tactic.RingNF.add_neg]
+
+@[simp]
+lemma x_minus_a_on_a_eq_zero {R: Type} [Ring R] (a : R) :
+  (xMinusA a).eval a = 0 := by simp
+
+lemma x_minus_a_eq_zero_implies_x_eq_a {R: Type} [Ring R] (a b : R)
+  (h: (xMinusA a).eval b = 0): b = a := by
+    simp at h
+    have hh : a = a + (b - a) := by simp only [h, add_zero]
+    rw [hh]
+    have hh : a + (b - a) = (b - a) + a := by simp only [add_comm]
+    rw [hh]
+    simp only [sub_add_cancel]
+
+def evalsToPoly {R: Type} [Ring R] (evals : List R) : UniPoly R
+  := match evals with
+  | [] => ⟨#[1]⟩
+  | x :: g => UniPoly.mul (xMinusA x) (evalsToPoly g)
+
+theorem eval_mul_eq_muls_eval {R: Type} [Semiring R] {f g: List R} {x : R} :
+  UniPoly.eval x (UniPoly.mul ⟨f.toArray⟩ ⟨g.toArray⟩)
+  = (UniPoly.eval x ⟨f.toArray⟩) * (UniPoly.eval x ⟨g.toArray⟩) := by
+  revert g
+  induction f with
+  | nil =>
+    intro g
+    unfold UniPoly.eval UniPoly.eval₂ UniPoly.mul Array.zipWithIndex
+    simp
+    have h: (Array.mapIdx (fun i a ↦ (a, i)) (@UniPoly.C R _ 0).coeffs) = #[(0, 0)] := by rfl
+    rw [Array.foldl_congr (by rw [h]) (by rfl) (by rfl) (by rfl) (by {
+      have h: (UniPoly.C 0).coeffs.size
+        = (Array.mapIdx (fun i a ↦ (a, i)) (UniPoly.C 0).coeffs).size := by rfl
+      exact h
+    })]
+    have h: (UniPoly.C 0).coeffs = #[0] := by rfl
+    rw [h]
+    simp
+  | cons a f ih =>
+    intro g
+    unfold UniPoly.eval UniPoly.eval₂ UniPoly.mul Array.zipWithIndex
+    simp
+
+
+lemma evals_to_poly_eq_zero_iff_x_is_a_root {R: Type} [Ring R] [IsDomain R] {evals : List R}
+  {x : R}:
+  (evalsToPoly evals).eval x = 0 ↔ x ∈ evals := by
+  revert x
+  induction evals with
+  | nil =>
+    simp [evalsToPoly, UniPoly.eval, UniPoly.eval₂, Array.zipWithIndex]
+  | cons a g ih => {
+    intro x
+    simp [evalsToPoly]
+
+
+  }
 
 end Polynomial
