@@ -344,4 +344,9 @@ noncomputable def Equiv.UniPoly.TropicallyBoundPolynomial {R : Type} [Semiring R
 end Tropical
 
 
+def evalsToPoly {R: Type} [Semiring R] (evals : Array R) : Polynomial R
+  := match evals.toList with
+  | [] => ⟨1⟩
+  | x::g => sorry
+
 end Polynomial
