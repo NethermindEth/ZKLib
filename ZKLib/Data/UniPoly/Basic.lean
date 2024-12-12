@@ -71,6 +71,60 @@ def add (p q : UniPoly R) : UniPoly R :=
   let ⟨p', q'⟩ := Array.matchSize p.coeffs q.coeffs 0
   .mk (Array.zipWith p' q' (· + ·) )
 
+def add_aux (p q : List R) : List R :=
+  match p with
+  | List.nil => q
+  | x :: p' =>
+    match q with
+    | List.nil => p
+    | y :: q' => (x + y) :: (add_aux p' q')
+
+def add_alternative (p q : UniPoly R) : UniPoly R :=
+  let (p', q') := (p.toArray.toList, q.toArray.toList)
+  ⟨⟨add_aux p' q'⟩⟩
+
+lemma add_eq_add_alternative (p q : UniPoly R) :
+  add p q = add_alternative p q := by
+  rcases p with ⟨⟨p⟩⟩
+  rcases q with ⟨⟨q⟩⟩
+  revert q
+  induction p with
+  | nil =>
+    intro q
+    unfold add add_alternative add_aux
+    simp [List.zipWith_toArray, mk.injEq,
+      Array.mk.injEq, List.matchSize, UniPoly.toArray, Array.toList]
+    induction q with
+    | nil => rfl
+    | cons y q ih =>
+      simp [List.replicate, List.zipWith, ih]
+  | cons x p ih =>
+    intro q
+    unfold add add_alternative add_aux
+    simp only [List.zipWith_toArray, mk.injEq, Array.mk.injEq,
+      List.matchSize, UniPoly.toArray, Array.toList]
+    induction q with
+    | nil =>
+      simp [List.replicate, List.zipWith]
+      rw [List.zipWith_comm_of_comm _ (by {
+        intro x y
+        rw [_root_.add_comm]
+      })]
+      clear ih
+      induction p with
+      | nil => sorry
+      | cons y p ihh =>
+        simp [List.zipWith, List.replicate, ihh]
+    | cons y q ihh =>
+      simp
+      have h : List.zipWith (fun x1 x2 ↦ x1 + x2) (p ++ List.replicate (q.length - p.length) 0)
+          (q ++ List.replicate (p.length - q.length) 0) = (add ⟨⟨p⟩⟩ ⟨⟨q⟩⟩).coeffs.toList := by
+        simp [add, List.matchSize]
+      rw [h, ih]
+      simp [add_alternative]
+      rfl
+
+
 /-- Scalar multiplication of `UniPoly` by an element of `R`. -/
 def smul (r : R) (p : UniPoly R) : UniPoly R :=
   .mk (Array.map (fun a => r * a) p.coeffs)
@@ -198,6 +252,12 @@ theorem ext {p q : UniPoly R} (h : p.coeffs = q.coeffs) : p = q := by
 theorem add_comm (p q : UniPoly R) : p + q = q + p := by
   simp only [instHAdd, Add.add, add, List.zipWith_toArray, mk.injEq, Array.mk.injEq]
   exact List.zipWith_comm_of_comm _ (fun x y ↦ by change x + y = y + x; rw [_root_.add_comm]) _ _
+
+theorem add_mul_distr (p q r : UniPoly R) :
+  p * (q + r) = p * q + p * r := by
+  simp only [instHAdd, Add.add, add, instHMul, Mul.mul, mul, List.zipWith_toArray]
+  simp
+
 
 @[simp] theorem zero_add (p : UniPoly R) : 0 + p = p := by
   simp [instHAdd, instAdd, add, List.matchSize]
@@ -364,6 +424,69 @@ def evalsToPoly {R: Type} [Ring R] (evals : List R) : UniPoly R
   := match evals with
   | [] => ⟨#[1]⟩
   | x :: g => UniPoly.mul (xMinusA x) (evalsToPoly g)
+
+def linearize {R: Type} [Semiring R] (f : UniPoly R) : (R × UniPoly R) :=
+  (f.coeffs[0]?.getD 0, ⟨f.coeffs.eraseIdx! 0⟩)
+
+@[simp]
+lemma const_poly_coeffs {R: Type} [Semiring R] {x : R}:
+  (UniPoly.C x).coeffs = #[x] := by rfl
+
+@[simp]
+lemma mulPowX1_coeffs {R: Type} [Semiring R] {f : UniPoly R} :
+  (UniPoly.mulPowX 1 f).coeffs = #[0] ++ f.coeffs := by rfl
+
+@[simp]
+lemma const_add_mulPowX1_aux {R: Type} [Semiring R] {f : UniPoly R} {x : R} :
+  ((UniPoly.C x).add (UniPoly.mulPowX 1 f)).coeffs = #[x] ++ f.coeffs := by
+  unfold UniPoly.C UniPoly.add
+  simp [List.matchSize]
+  rcases f with ⟨⟨f⟩⟩
+  simp
+  induction f with
+  | nil => rfl
+  | cons x tail ih =>
+    simp
+    unfold List.zipWith List.replicate
+    simp
+    rw [ih]
+
+@[simp]
+lemma const_add_mulPowX1 {R: Type} [Semiring R] {f : UniPoly R} {x : R} :
+  ((UniPoly.C x) + (UniPoly.mulPowX 1 f)).coeffs = #[x] ++ f.coeffs := by
+  change ((UniPoly.C x).add (UniPoly.mulPowX 1 f)).coeffs = #[x] ++ f.coeffs
+  simp
+
+lemma polynomial_ext {R: Type} [Semiring R] {f g : UniPoly R} {x : R} (h : f.coeffs = g.coeffs) :
+  UniPoly.eval x f = UniPoly.eval x g := by
+  rcases f with ⟨⟨f⟩⟩
+  rcases g with ⟨⟨g⟩⟩
+  simp at h
+  rw [h]
+
+lemma linearization_spec {R: Type} [Semiring R] (f : UniPoly R) (x : R):
+  UniPoly.eval x f = let (a₀, a₁) := linearize f
+    UniPoly.eval x (UniPoly.C a₀ + UniPoly.mulPowX 1 a₁) := by
+    rcases f with ⟨⟨f⟩⟩
+    simp [linearize]
+    rcases f
+    unfold UniPoly.eval UniPoly.eval₂
+    simp
+    unfold Array.zipWithIndex Array.eraseIdx!
+    simp
+    rw [Array.foldl_congr (by {
+      change Array.mapIdx (fun i a ↦ (a, i)) (#[0] ++ default) = #[(0,0)]
+      rfl
+    }) (by rfl) (by rfl) (by rfl) (by {
+      simp [default]
+      change 1 + #[].size = 1
+      rfl
+    })]
+    simp
+    apply polynomial_ext
+    simp [Array.eraseIdx!]
+
+lemma
 
 theorem eval_mul_eq_muls_eval {R: Type} [Semiring R] {f g: List R} {x : R} :
   UniPoly.eval x (UniPoly.mul ⟨f.toArray⟩ ⟨g.toArray⟩)
