@@ -112,7 +112,7 @@ lemma add_eq_add_alternative (p q : UniPoly R) :
       })]
       clear ih
       induction p with
-      | nil => sorry
+      | nil => rfl
       | cons y p ihh =>
         simp [List.zipWith, List.replicate, ihh]
     | cons y q ihh =>
