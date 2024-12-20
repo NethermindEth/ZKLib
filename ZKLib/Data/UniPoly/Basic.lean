@@ -37,6 +37,10 @@ variable {R : Type _} [Semiring R]
 /-- Another way to access `coeffs` -/
 def toArray (p : UniPoly R) : Array R := p.coeffs
 
+@[simp]
+def toArray_def (p : Array R) :
+  (⟨p⟩ : UniPoly R).toArray = p := by rfl
+
 /-- The size of the underlying array. This may not correspond to the degree of the corresponding
   polynomial if the array has leading zeroes. -/
 def size (p : UniPoly R) : Nat := p.coeffs.size
@@ -45,6 +49,18 @@ def size (p : UniPoly R) : Nat := p.coeffs.size
 
 /-- The constant polynomial `C r`. -/
 def C (r : R) : UniPoly R := ⟨#[r]⟩
+
+@[simp]
+lemma C_def {r : R} :
+  ⟨#[r]⟩ = C r := by rfl
+
+@[simp]
+lemma coeffs_of_C {r : R} :
+  (C r).coeffs = #[r] := by rfl
+
+@[simp]
+lemma toArray_of_C {r : R} :
+  (C r).toArray = #[r] := by rfl
 
 /-- The variable `X`. -/
 def X : UniPoly R := ⟨#[0, 1]⟩
@@ -78,6 +94,36 @@ def add_aux (p q : List R) : List R :=
     match q with
     | List.nil => p
     | y :: q' => (x + y) :: (add_aux p' q')
+
+@[simp]
+lemma add_aux_nil_left {q : List R} :
+  add_aux [] q = q := by rfl
+
+@[simp]
+lemma add_aux_nil_right {q : List R} :
+  add_aux q [] = q := by
+  cases q <;> try simp [add_aux]
+
+@[simp]
+lemma add_aux_zero_left_nil :
+  add_aux [(0 : R)] [] = [0] := by rfl
+
+@[simp]
+lemma add_aux_zero_right_nil :
+  add_aux [] [(0 : R)] = [0] := by rfl
+
+@[simp]
+lemma add_aux_zero_left_cons {x : R} {q : List R} :
+  add_aux [0] (x :: q) = (x :: q) := by simp [add_aux]
+
+@[simp]
+lemma add_aux_zero_right_cons {x : R} {q : List R} :
+  add_aux (x :: q) [0] = (x :: q) := by simp [add_aux]
+
+
+@[simp]
+lemma add_aux_not_nil {x y : R} {p q : List R} :
+  add_aux (x :: p) (y :: q) = (x + y) :: add_aux p q := by rfl
 
 def add_alternative (p q : UniPoly R) : UniPoly R :=
   let (p', q') := (p.toArray.toList, q.toArray.toList)
@@ -122,12 +168,53 @@ lemma add_eq_add_alternative (p q : UniPoly R) :
         simp [add, List.matchSize]
       rw [h, ih]
       simp [add_alternative]
-      rfl
 
+@[simp]
+lemma add_nil_left {p : UniPoly R} :
+  add ⟨#[]⟩ p = p := by
+  simp [add_eq_add_alternative, add_alternative, toArray]
+
+@[simp]
+lemma add_nil_right {p : UniPoly R} :
+  add p ⟨#[]⟩ = p := by
+  simp [add_eq_add_alternative, add_alternative, toArray]
+
+@[simp]
+lemma add_zero_left_nil :
+  add (C 0) ⟨#[]⟩ = C 0 := by rfl
+
+@[simp]
+lemma add_zero_right_nil :
+  add ⟨#[]⟩ (C 0) = C 0 := by rfl
+
+@[simp]
+lemma add_zero_zero :
+  add (C (0 : R)) (C 0) = C 0 := by
+  simp [add_eq_add_alternative, add_alternative]
+
+@[simp]
+lemma add_zero_left_cons {x : R} {p : List R} :
+  add (C 0) ⟨⟨x :: p⟩⟩ = ⟨⟨x :: p⟩⟩  := by
+  simp [add_eq_add_alternative, add_alternative, add_aux]
+
+@[simp]
+lemma add_zero_right_cons {x : R} {p : List R} :
+  add ⟨⟨x :: p⟩⟩ (C 0) = ⟨⟨x :: p⟩⟩  := by
+  simp [add_eq_add_alternative, add_alternative, add_aux]
+
+@[simp]
+lemma add_cons {x y : R} {p q : List R} :
+  add ⟨⟨x :: p⟩⟩ ⟨⟨y :: q⟩⟩ = ⟨⟨(x + y) :: ((add ⟨⟨p⟩⟩ ⟨⟨q⟩⟩).toArray.toList)⟩⟩ := by
+  simp [add_eq_add_alternative, add_alternative, add_aux]
 
 /-- Scalar multiplication of `UniPoly` by an element of `R`. -/
 def smul (r : R) (p : UniPoly R) : UniPoly R :=
   .mk (Array.map (fun a => r * a) p.coeffs)
+
+
+@[simp]
+lemma smul_nil {r : R} :
+  smul r ⟨#[]⟩ = ⟨#[]⟩ := by rfl
 
 def smul_aux (r : R) (p : List R) : List R :=
   p.map (fun a => r * a)
@@ -157,12 +244,14 @@ def mulPowX (i : Nat) (p : UniPoly R) : UniPoly R := .mk (Array.replicate i 0 ++
 def mul (p q : UniPoly R) : UniPoly R :=
   p.coeffs.zipWithIndex.foldl (fun acc ⟨a, i⟩ => acc.add <| (smul a q).mulPowX i) (C 0)
 
+#eval mul ⟨(#[] : Array ℕ)⟩ ⟨#[]⟩
+
 def mul_aux (p q : List R) : List R :=
   match p with
   | [] => [0]
   | a₀ :: p' =>
     match q with
-    | [] => List.replicate p.length 0
+    | [] => List.replicate p'.length 0
     | b₀ :: q' =>
       let const_term := a₀ * b₀
       let x_term := add_aux (smul_aux a₀ p') (smul_aux b₀ q')
@@ -171,7 +260,7 @@ def mul_aux (p q : List R) : List R :=
 
 def mul_alternative (p q : UniPoly R) : UniPoly R :=
   let (p', q') := (p.toArray.toList, q.toArray.toList)
-  ⟨⟨mul_aux p' q'⟩⟩
+  add ⟨⟨mul_aux p' q'⟩⟩ (C 0)
 
 @[simp]
 lemma add_aux_empty {p : List R} :
@@ -220,65 +309,117 @@ lemma foldl_coeffs_ext.{u} {α : Type u}
     intro init
     simp [ih]
 
+@[simp]
 lemma mulPowX_0 {p : UniPoly R} :
   mulPowX 0 p = p := by
   unfold mulPowX
   apply ext
   simp [Array.replicate]
 
-lemma foldl_mapIdx {p : List R} {init : List R} :
-  List.foldl
-    (fun (acc : List R) (x: R × ℕ) ↦ acc ++ (List.replicate (x.2 - acc.length) (0 : R)))
-    init
-    (List.mapIdx (fun i a ↦ (a, i + 1)) p) =
-  List.foldl
-    (fun (acc : List R) (x: R × ℕ) ↦ acc ++ (List.replicate (x.2 + 1 - acc.length) (0 : R)))
-    init
-    (List.mapIdx (fun i a ↦ (a, i)) p) := by
-  revert init
+@[simp]
+lemma zero_add_mulPowX_succ {n : ℕ} {p : UniPoly R} :
+  (C 0).add (mulPowX (n + 1) p) = mulPowX (n + 1) p := by
+  simp [mulPowX, Array.replicate, List.replicate, add_eq_add_alternative, add_alternative]
+
+lemma mulPowX_nil {n : ℕ} :
+  (mulPowX n ⟨(#[] : Array R)⟩) = ⟨Array.replicate n 0⟩ := by rfl
+
+@[simp]
+lemma mulPowX_succ {n : ℕ} {p : UniPoly R} :
+  (mulPowX (n + 1) p) = ⟨⟨0 :: (mulPowX n p).coeffs.toList⟩⟩ := by
+  simp [mulPowX]
+  aesop
+
+lemma foldl_ignore_first {l : List (R × ℕ)} {init : List R} {f : List R → (R × ℕ) → List R}
+  (h : ∀ acc b b', b.2 = b'.2 → f acc b = f acc b'):
+  l.foldl f init = (l.map Prod.snd).foldl (λ acc x ↦ f acc (Classical.arbitrary _, x)) init := by
+  induction' l with hd tl ih generalizing init
+  · simp
+  · simp; rw [ih, h]; simp
+
+lemma list_replicate_succ_right.{u} {X : Type u} [Zero X] {n : ℕ} :
+  List.replicate n (0 : X) ++ [0] = List.replicate (n + 1) (0 : X) := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    simp [List.replicate_succ, ih]
+
+
+lemma foldl_replicate {p : List R} :
+  List.foldl (λ (acc : List R) (x: R × ℕ) ↦ if x.2 ≤ acc.length then acc else acc ++ List.replicate (x.2 - acc.length) 0)
+  [0]
+  (List.mapIdx (λ i a ↦ (a, i + 1 + 1)) p) =
+  0 :: List.replicate (p.length) (0 : R) := by
+  rw [foldl_ignore_first (by simp), List.mapIdx_eq_enum_map, List.map_map, Function.uncurry_def]
+  simp_rw [show (Prod.snd ∘ λ p : ℕ × R ↦ (p.2, p.1 + 1 + 1)) = (λ x ↦ x + 1 +1) ∘ Prod.fst by ext; rfl]
+  rw [←List.map_comp_map]
+  simp_rw [Function.comp_apply, List.enum_map_fst]
+  induction' p.length with n ih
+  · simp
+  · rw [List.range_succ, List.map_append, List.foldl_append, ih]
+    simp [list_replicate_succ_right]
+
+theorem List.foldl_congr.{u₁, u₂} {α : Type u₁} {β : Type u₂} {as bs : List α}
+  (h₀ : as = bs) {f g : β → α → β} (h₁ : f = g) {a b : β} (h₂ : a = b) :
+  List.foldl f a as = List.foldl g b bs := by congr
+
+lemma add_mulPowX₁ {i : ℕ} {p : UniPoly R} (h : p.coeffs.toList.length ≥ i):
+  p.add (mulPowX i { coeffs := #[] }) = p := by
+  rcases p with ⟨⟨p⟩⟩
+  revert i
   induction p with
   | nil =>
+    intro i h
+    simp at h
+    rw [h]
     simp
   | cons x p' ih =>
-    simp
-    intro init
-    cases init.length
-    simp
-    rw [ih]
-    simp
+    intro i h
+    rcases i with _ | ⟨i⟩ <;> try simp [Array.replicate, toArray, List.replicate]
+    simp at h
+    specialize (@ih i h)
+    simp [mulPowX_nil] at ih
+    simp [mulPowX_nil, ih]
 
-lemma foldl_replicate {p : List R} {init: List R} :
-  List.foldl
-    (fun (acc : List R) (x: R × ℕ) ↦ acc ++ (List.replicate (x.2 - acc.length) (0 : R)))
-    init
-    (List.mapIdx (fun i a ↦ (a, i)) p)
-    = init ++ List.replicate p.length 0 := by
-  revert init
+lemma add_mulPowX₂ {i : ℕ} {p : UniPoly R} (h : p.coeffs.toList.length < i):
+  add p (mulPowX i ⟨#[]⟩)
+    = ⟨⟨p.coeffs.toList ++ (List.replicate (i - p.coeffs.toList.length) 0)⟩⟩ := by
+  rcases p with ⟨⟨p⟩⟩
+  revert i
   induction p with
   | nil =>
-    intro
-    simp
+    intro i h
+    simp at h
+    simp [mulPowX_nil]
   | cons x p' ih =>
-    intro init
-    simp
+    intro i h
+    rcases i with _ | ⟨i⟩ <;> try simp
+    simp at h
+    specialize (@ih i h)
+    simp at ih
+    simp [ih]
 
+lemma add_mulPowX {i : ℕ} {p : UniPoly R} :
+  p.add (mulPowX i { coeffs := #[] }) =
+    if p.coeffs.toList.length ≥ i
+    then p else ⟨p.coeffs ++ Array.replicate (i - p.coeffs.toList.length) 0⟩ := by
+    by_cases h : (p.coeffs.toList.length ≥ i)
+    rw [add_mulPowX₁ h]
+    simp [h]
+    simp at h
+    rw [add_mulPowX₂ h]
+    aesop
 
 lemma mul_eq_mul_alternative (p q : UniPoly R):
   mul p q = mul_alternative p q := by
   rcases p with ⟨⟨p⟩⟩
   rcases q with ⟨⟨q⟩⟩
   unfold mul mul_alternative mul_aux
-  rw [Array.foldl_congr (by rfl) (by {
-        trans (fun acc x ↦ acc.add_alternative (mulPowX x.2 (smul x.1 { coeffs := { toList := q } }))) <;> try rfl
-        apply funext₂
-        rintro x ⟨y, i⟩
-        simp [add_eq_add_alternative]
-      }) (by rfl) (by rfl) (by rfl)]
   simp only [Array.size_zipWithIndex, Array.size_toArray, Array.zipWithIndex, toArray, add_alternative]
   revert q
   induction p with
   | nil =>
-    simp [C]
+    simp
   | cons a₀ p' ih =>
     intro q
     simp [Array.toList]
@@ -289,7 +430,23 @@ lemma mul_eq_mul_alternative (p q : UniPoly R):
       rw [h]
     apply hArrayExt
     simp
-    cases q
+    rcases q with _ | ⟨y, q'⟩
+    simp
+    rcases p' with _ | ⟨z, p''⟩ <;> try simp [List.replicate]
+    have hh : ((⟨⟨List.replicate (p''.length + 1) 0⟩⟩ : UniPoly R).add (C (0 : R)))
+        = { coeffs := { toList := List.replicate (p''.length + 1) 0 } } := by
+        simp [List.replicate]
+    rw [List.foldl_congr (by rfl) (by {
+      apply funext₂
+      intro a b
+      simp [add_mulPowX]
+      trans (if b.2 ≤ a.length then a
+      else a ++ List.replicate (b.2 - a.length) 0)
+      by_cases b.2 ≤ a.length <;> try aesop
+      rfl
+    }) (by rfl)]
+    rw [foldl_replicate]
+    simp
     simp [C, smul, mulPowX]
     clear ih
     induction p' with
